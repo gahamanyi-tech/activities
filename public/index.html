@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>My Canvas Assignment Tracker (jQuery)</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: Arial, sans-serif;
+    background: #f4f5f7;
+    margin: 0;
+    padding: 30px;
+    color: #1c1c1e;
+  }
+  h1 { text-align: center; margin-bottom: 30px; }
+  .columns {
+    display: flex;
+    gap: 24px;
+    max-width: 900px;
+    margin: 0 auto;
+    flex-wrap: wrap;
+  }
+  .column {
+    flex: 1;
+    min-width: 280px;
+    background: white;
+    border-radius: 10px;
+    padding: 16px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+  }
+  .column h2 {
+    font-size: 18px;
+    margin-top: 0;
+    padding-bottom: 8px;
+    border-bottom: 2px solid #e0e0e0;
+  }
+  .upcoming h2 { color: #c0392b; }
+  .completed h2 { color: #27ae60; }
+  .assignment {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 0;
+    border-bottom: 1px solid #eee;
+  }
+  .assignment:last-child { border-bottom: none; }
+  .assignment input[type="checkbox"] {
+    margin-top: 4px;
+    width: 18px;
+    height: 18px;
+  }
+  .assignment-info { flex: 1; }
+  .assignment-name { font-weight: bold; }
+  .assignment-course { font-size: 12px; color: #888; }
+  .assignment-due { font-size: 13px; color: #666; }
+  .overdue { color: #c0392b; font-weight: bold; }
+  .empty-msg, .status-msg { color: #999; font-style: italic; font-size: 14px; }
+</style>
+</head>
+<body>
+
+<h1>📚 My Canvas Assignment Tracker</h1>
+<p id="status" class="status-msg" style="text-align:center;">Loading your assignments from Canvas…</p>
+
+<div class="columns">
+  <div class="column upcoming">
+    <h2>Upcoming</h2>
+    <div id="upcoming-list"></div>
+  </div>
+  <div class="column completed">
+    <h2>Completed</h2>
+    <div id="completed-list"></div>
+  </div>
+</div>
+
+<script>
+  // All assignment data lives here once loaded from the server.
+  let assignments = [];
+
+  function formatDate(dateStr) {
+    const date = new Date(dateStr + "T00:00:00");
+    return date.toLocaleDateString("en-US", {
+      weekday: "short", month: "short", day: "numeric", year: "numeric"
+    });
+  }
+
+  function isOverdue(dateStr) {
+    return new Date(dateStr + "T23:59:59") < new Date();
+  }
+
+  // Builds one assignment row as a jQuery element (instead of a raw string).
+  // data-id lets us find this exact assignment again later without inline onclick.
+  function buildAssignmentRow(a) {
+    const overdueClass = (!a.done && isOverdue(a.dueDate)) ? "overdue" : "";
+
+    const $row = $("<div>").addClass("assignment").attr("data-id", a.id);
+
+    const $checkbox = $("<input>")
+      .attr("type", "checkbox")
+      .prop("checked", a.done);
+
+    const $info = $("<div>").addClass("assignment-info").append(
+      $("<div>").addClass("assignment-name").text(a.name),
+      $("<div>").addClass("assignment-course").text(a.course),
+      $("<div>").addClass("assignment-due " + overdueClass).text("Due: " + formatDate(a.dueDate))
+    );
+
+    return $row.append($checkbox, $info);
+  }
+
+  // Re-draws both columns based on the current state of the `assignments` array.
+  function render() {
+    const $upcomingList = $("#upcoming-list").empty();
+    const $completedList = $("#completed-list").empty();
+
+    const upcoming = assignments
+      .filter(a => !a.done)
+      .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
+
+    const completed = assignments
+      .filter(a => a.done)
+      .sort((a, b) => new Date(b.dueDate) - new Date(a.dueDate));
+
+    if (upcoming.length) {
+      upcoming.forEach(a => $upcomingList.append(buildAssignmentRow(a)));
+    } else {
+      $upcomingList.html('<p class="empty-msg">Nothing left — nice job!</p>');
+    }
+
+    if (completed.length) {
+      completed.forEach(a => $completedList.append(buildAssignmentRow(a)));
+    } else {
+      $completedList.html('<p class="empty-msg">Nothing completed yet.</p>');
+    }
+  }
+
+  // Delegated event handler: works even for checkboxes that get added
+  // later by render(), because we're listening on a parent that always exists.
+  // NOTE: this only flips the box on THIS page. It does not submit anything
+  // back to Canvas -- that's a much bigger, riskier feature left out on purpose.
+  $(document).on("change", ".assignment input[type='checkbox']", function () {
+    const id = Number($(this).closest(".assignment").data("id"));
+    const a = assignments.find(a => a.id === id);
+    a.done = !a.done;
+    render();
+  });
+
+  // Ask OUR OWN server for the data (same origin, so no CORS problem).
+  // Our server is the one that actually talks to Canvas.
+  function loadAssignments() {
+    $.getJSON("/api/assignments")
+      .done(function (data) {
+        assignments = data;
+        $("#status").hide();
+        render();
+      })
+      .fail(function () {
+        $("#status").text(
+          "Couldn't load assignments. Make sure the server is running (node server.js) and your .env file has a valid token."
+        );
+      });
+  }
+
+  $(document).ready(loadAssignments);
+</script>
+
+</body>
+</html>
