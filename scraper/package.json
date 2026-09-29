@@ -1,0 +1,10 @@
+{
+  "name": "canvas-scraper",
+  "version": "1.0.0",
+  "description": "Reads a saved Canvas assignments page and prints assignment info to the terminal using jQuery + JSDOM.",
+  "main": "scrape.js",
+  "dependencies": {
+    "jquery": "^3.7.1",
+    "jsdom": "^25.0.0"
+  }
+}
